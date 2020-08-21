@@ -1791,7 +1791,7 @@ VALUE="/var/lib/neutron/tmp"; FILE=/etc/neutron/neutron.conf; KEY="lock_path"; N
 VALUE="vlan,vxlan,flat"; FILE=/etc/neutron/plugins/ml2/ml2_conf.ini; KEY="type_drivers"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
 
 #tenant_network_types
-VALUE="vlan,vxlan,flat"; FILE=/etc/neutron/plugins/ml2/ml2_conf.ini; KEY="tenant_network_types"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+VALUE="vxlan,vlan,flat"; FILE=/etc/neutron/plugins/ml2/ml2_conf.ini; KEY="tenant_network_types"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
 
 #mechanism_drivers linuxbrange
 VALUE="linuxbridge,l2population"; FILE=/etc/neutron/plugins/ml2/ml2_conf.ini; KEY="mechanism_drivers"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
@@ -1913,7 +1913,7 @@ VALUE="/var/lib/neutron/tmp"; FILE=/etc/neutron/neutron.conf; KEY="lock_path"; N
 VALUE="vlan,vxlan,flat"; FILE=/etc/neutron/plugins/ml2/ml2_conf.ini; KEY="type_drivers"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
 
 #tenant_network_types
-VALUE="vlan,vxlan,flat"; FILE=/etc/neutron/plugins/ml2/ml2_conf.ini; KEY="tenant_network_types"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+VALUE="vxlan,vlan,flat"; FILE=/etc/neutron/plugins/ml2/ml2_conf.ini; KEY="tenant_network_types"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
 
 #mechanism_drivers linuxbrange
 VALUE="linuxbridge,l2population"; FILE=/etc/neutron/plugins/ml2/ml2_conf.ini; KEY="mechanism_drivers"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
@@ -1988,15 +1988,13 @@ VALUE="True"; FILE=/etc/neutron/plugins/ml2/openvswitch_agent.ini; KEY="enable_s
 
 
 
-##### 配置ovs的网桥
+#### 配置ovs的网桥
 
 ```shell
 ovs-vsctl add-br br-ex
-ovs-vsctl add-port br-ex ens32
-
+ovs-vsctl add-port br-ex ens32 && ovs-vsctl set interface ens32 type=patch
+ovs-vsctl list-ports br-ex
 ```
-
-
 
 
 
@@ -2326,7 +2324,11 @@ ipsec verify: encountered 7 errors - see 'man ipsec_verify' for help
 ##### 修改/etc/neutron/neutron.conf 控制和网络节点
  ```shell
 #service_plugins
-VALUE="router,neutron_vpnaas.services.vpn.plugin.VPNDriverPlugin"; FILE=/etc/neutron/neutron.conf; KEY="service_plugins ="; NEW_VALUE="$KEY $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+VALUE="router,vpnaas"; FILE=/etc/neutron/neutron.conf; KEY="service_plugins ="; NEW_VALUE="$KEY $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+
+# 此处改了就不用修改/etc/neutron/neutron_vpnaas.conf文件中的内容
+# [service_providers] service_provider
+VALUE="service_provider = VPN:libreswan:neutron_vpnaas.services.vpn.service_drivers.ipsec.IPsecVPNDriver:default"; FILE=/etc/neutron/neutron.conf; KEY="[service_providers]" GREP_KEY="\[service_providers\]"; NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "^$GREP_KEY" -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo -e "$NEW_VALUE" >> $FILE; fi
  ```
 
 ##### 修改/etc/neutron/vpn_agent.ini网络节点
@@ -2336,18 +2338,30 @@ VALUE="interface_driver =linuxbridge"; FILE=/etc/neutron/vpn_agent.ini; KEY="\[D
 
 
 #interface_driver ovs
-VALUE="neutron.agent.linux.interface.OVSInterfaceDriver"; FILE=/etc/neutron/vpn_agent.ini; KEY="\[DEFAULT\]"; NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+VALUE="interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver"; FILE=/etc/neutron/vpn_agent.ini; KEY="[DEFAULT]"; GREP_KEY="\[DEFAULT\]"; NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "$GREP_KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
 
 #vpn_device_driver
 VALUE="neutron_vpnaas.services.vpn.device_drivers.libreswan_ipsec.LibreSwanDriver"; FILE=/etc/neutron/vpn_agent.ini; KEY="vpn_device_driver"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
 ```
 
+
+
+##### 修改/etc/neutron/neutron_vpnaas.conf
+
+```shell
+# [service_providers] service_provider
+VALUE="service_provider = VPN:libreswan:neutron_vpnaas.services.vpn.service_drivers.ipsec.IPsecVPNDriver:default"; FILE=/etc/neutron/neutron_vpnaas.conf; KEY="[service_providers]" GREP_KEY="\[service_providers\]"; NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "^$GREP_KEY" -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo -e "$NEW_VALUE" >> $FILE; fi
+```
+
+
+
 ##### 创建DB表
+
 ```shell
 
 neutron-db-manage --subproject neutron-vpnaas upgrade head
 
-su -s /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/vpn_agent.ini upgrade head" neutron
+su -s /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/vpn_agent.ini --config-file /etc/neutron/neutron_vpnaas.conf upgrade head" neutron
 ```
 
 
@@ -2396,7 +2410,9 @@ systemctl restart openstack-glance-api.service
 systemctl restart openstack-glance-registry.service
 systemctl restart openstack-nova-api.service
 systemctl restart neutron-server.service
-systemctl restart neutron-linuxbridge-agent.service neutron-dhcp-agent.service neutron-metadata-agent.service
+systemctl restart neutron-linuxbridge-agent.service
+systemctl restart neutron-dhcp-agent.service
+systemctl restart neutron-metadata-agent.service
 #systemctl restart neutron-l3-agent.service
 systemctl restart neutron-openvswitch-agent.service
 systemctl restart neutron-vpn-agent
@@ -2772,6 +2788,8 @@ openstack server create --port fcf74cd0-c049-4a51-9846-78de3fe3cdf0 --image 5450
 
 ##### 修改/etc/neutron/plugins/ml2/ml2_conf.ini文件
 
+* 网络和计算节点都修改，计算节点没有这个配置文件拷贝过去
+
 ```shell
 #mechanism_drivers openvswitch
 VALUE="openvswitch,l2population"; FILE=/etc/neutron/plugins/ml2/ml2_conf.ini; KEY="mechanism_drivers"; NEW_VALUE="$KEY = $VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
@@ -2822,7 +2840,7 @@ VALUE="neutron.agent.linux.interface.OVSInterfaceDriver"; FILE=/etc/neutron/l3_a
 
 ```shell
 #interface_driver ovs
-VALUE="neutron.agent.linux.interface.OVSInterfaceDriver"; FILE=/etc/neutron/vpn_agent.ini; KEY="\[DEFAULT\]"; NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+VALUE="interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver"; FILE=/etc/neutron/vpn_agent.ini; KEY="[DEFAULT]"; GREP_KEY="\[DEFAULT\]";  NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "$GREP_KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo -e "$NEW_VALUE" >> $FILE; fi
 
 ```
 
@@ -2936,4 +2954,89 @@ EOF
 ```
 
 
+
+### neutron-server安装了vpn启动报错导包错误
+
+```log
+ERROR neutron ImportError: No module named vpn.service_drivers.ipsec
+```
+
+
+
+* 修改/etc/neutron/neutron_vpnaas.conf中的service_provider即可
+
+```shell
+# [service_providers] service_provider
+VALUE="service_provider = VPN:libreswan:neutron_vpnaas.services.vpn.service_drivers.ipsec.IPsecVPNDriver:default"; FILE=/etc/neutron/neutron_vpnaas.conf; KEY="\[service_providers\]"; NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "^$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+```
+
+
+
+
+
+### neutron-server安装了vpn启动报错缺少表字段
+
+```log
+2020-08-20 02:20:13.421 88450 ERROR neutron DBError: (pymysql.err.InternalError) (1054, u"Unknown column 'vpnservices.project_id' in 'field list'") [SQL: u'SELECT vpnservices.project_id AS vpnservices_project_id, vpnservices.id AS vpnservices_id, vpnservices.name AS vpnservices_name, vpnservices.description AS vpnservices_description, vpnservices.status AS vpnservices_status, vpnservices.admin_state_up AS vpnservices_admin_state_up, vpnservices.external_v4_ip AS vpnservices_external_v4_ip, vpnservices.external_v6_ip AS vpnservices_external_v6_ip, vpnservices.subnet_id AS vpnservices_subnet_id, vpnservices.router_id AS vpnservices_router_id, vpnservices.flavor_id AS vpnservices_flavor_id \nFROM vpnservices']
+
+```
+
+
+
+* 执行以下命令即可
+
+```shell
+su -s /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/vpn_agent.ini --config-file /etc/neutron/neutron_vpnaas.conf upgrade head" neutron
+```
+
+
+
+### neutron-server安装了vpn启动报错providers不是唯一的
+
+
+
+```log
+ Invalid: Driver neutron_vpnaas.services.vpn.service_drivers.ipsec.IPsecVPNDriver is not unique across providers
+
+```
+
+
+
+* 删除多余的service_providers
+
+```shell
+# 删除多余的service_providers
+VALUE=""; FILE=/etc/neutron/neutron_vpnaas.conf; KEY="service_provider"; NEW_VALUE="$KEY $VALUE"; LINE=$(grep "$KEY" -w -n -m2 $FILE | awk '{if (NR==1) print$0}' | awk -F ':' '{print$1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}d" $FILE;fi
+
+```
+
+
+
+### OpenStack 启动虚拟机 Booting from Hard Disk
+
+* 修改/etc/nova/nova.conf文件
+
+```shell
+# [libvirt] cpu_mode = none virt_type = qemu
+VALUE="cpu_mode = none\nvirt_type = qemu"; FILE=/etc/nova/nova.conf; KEY="\[libvirt\]"; NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "^$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+```
+
+
+
+* 重启nova服务
+
+```shell
+# 控制
+systemctl restart openstack-nova-api.service
+systemctl restart openstack-nova-consoleauth.service 
+systemctl restart openstack-nova-scheduler.service
+systemctl restart openstack-nova-conductor.service
+systemctl restart openstack-nova-novncproxy.service
+
+
+# 计算
+systemctl enable libvirtd.service openstack-nova-compute.service
+systemctl restart libvirtd.service openstack-nova-compute.service
+systemctl status libvirtd.service openstack-nova-compute.service
+```
 
