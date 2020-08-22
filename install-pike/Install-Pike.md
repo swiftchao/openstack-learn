@@ -1988,16 +1988,6 @@ VALUE="True"; FILE=/etc/neutron/plugins/ml2/openvswitch_agent.ini; KEY="enable_s
 
 
 
-#### 配置ovs的网桥
-
-```shell
-ovs-vsctl add-br br-ex
-ovs-vsctl add-port br-ex ens32 && ovs-vsctl set interface ens32 type=patch
-ovs-vsctl list-ports br-ex
-```
-
-
-
 #### 配置l3_agent.ini
 
 * /etc/neutron/l3_agent.ini
@@ -2184,7 +2174,7 @@ VALUE="neutron.agent.linux.iptables_firewall.IptablesFirewallDriver"; FILE=/etc/
 
 ```shell
 #agent
-VALUE="tunnel_types=vxlan\nl2_population=True\nprevent_arp_spoofing=True; FILE=/etc/neutron/plugins/ml2/openvswitch_agent.ini; KEY="\[agent\]"; NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+VALUE="tunnel_types=vxlan\nl2_population=True\nprevent_arp_spoofing=True"; FILE="/etc/neutron/plugins/ml2/openvswitch_agent.ini"; KEY="\[agent\]"; NEW_VALUE="$KEY\n$VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
 
 #local_ip
 VALUE="192.168.8.202"; FILE=/etc/neutron/plugins/ml2/openvswitch_agent.ini; KEY="local_ip"; NEW_VALUE="$KEY=$VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk -F ':' '{print $1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
@@ -2236,6 +2226,64 @@ systemctl restart neutron-openvswitch-agent.service
 ```
 
 
+
+### 配置ovs的网桥(所有节点)
+
+```shell
+ovs-vsctl add-br br-ex
+ovs-vsctl add-port br-ex ens32
+ovs-vsctl list-ports br-ex
+```
+
+
+
+#### 配置网桥的配置文件
+
+```shell
+BR0=br-ex
+IP=192.168.8.201
+IP_MASK=255.255.255.0
+GATEWAY_IP=192.168.8.254
+NET_TYPE=OVSBridge 
+DEVICETYPE_VALUE=ovs
+tee /etc/sysconfig/network-scripts/ifcfg-br-ex << EOF
+NAME=$BR0
+DEVICE=$BR0
+ONBOOT=yes
+TYPE=$NET_TYPE
+DEVICETYPE=$DEVICETYPE_VALUE
+IPADDR=$IP
+NETMASK=$IP_MASK
+GATEWAY=$GATEWAY_IP
+EOF
+
+
+ETH0=ens32
+NET_TYPE=OVSIntPort
+BR=br-ex
+DEVICETYPE_VALUE=ovs
+tee  /etc/sysconfig/network-scripts/ifcfg-ens32 << EOF
+NAME=$ETH0
+DEVICE=$ETH0
+ONBOOT=yes
+NETBOOT=yes
+BOOTPROTO=static
+TYPE=$NET_TYPE
+OVS_BRIDGE=$BR
+DEVICETYPE=$DEVICETYPE_VALUE
+EOF
+
+```
+
+
+
+#### 重启网络服务
+
+```shell
+systemctl restart network
+ovs-vsctl del-port br-ex ens32
+ovs-vsctl add-port br-ex ens32
+```
 
 
 
@@ -2410,10 +2458,12 @@ systemctl restart openstack-glance-api.service
 systemctl restart openstack-glance-registry.service
 systemctl restart openstack-nova-api.service
 systemctl restart neutron-server.service
-systemctl restart neutron-linuxbridge-agent.service
+# linuxbridge
+#systemctl restart neutron-linuxbridge-agent.service
 systemctl restart neutron-dhcp-agent.service
 systemctl restart neutron-metadata-agent.service
 #systemctl restart neutron-l3-agent.service
+# ovs
 systemctl restart neutron-openvswitch-agent.service
 systemctl restart neutron-vpn-agent
 
@@ -2423,6 +2473,9 @@ systemctl restart openstack-nova-consoleauth.service
 systemctl restart openstack-nova-scheduler.service
 systemctl restart openstack-nova-conductor.service
 systemctl restart openstack-nova-novncproxy.service
+
+systemctl stop neutron-linuxbridge-agent.service
+systemctl disable neutron-linuxbridge-agent.service
 ```
 
 
@@ -2432,7 +2485,7 @@ systemctl restart openstack-nova-novncproxy.service
 ```shell 
 systemctl restart openstack-nova-compute.service
 # linuxbridge
-systemctl restart neutron-linuxbridge-agent.service
+#systemctl restart neutron-linuxbridge-agent.service
 # ovs
 systemctl restart neutron-openvswitch-agent.service
 ```
