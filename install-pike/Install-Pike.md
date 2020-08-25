@@ -2476,6 +2476,12 @@ systemctl restart openstack-nova-novncproxy.service
 
 systemctl stop neutron-linuxbridge-agent.service
 systemctl disable neutron-linuxbridge-agent.service
+
+
+systemctl list-units | grep switch
+systemctl restart openvswitch.service
+systemctl status openvswitch.service
+
 ```
 
 
@@ -3091,5 +3097,31 @@ systemctl restart openstack-nova-novncproxy.service
 systemctl enable libvirtd.service openstack-nova-compute.service
 systemctl restart libvirtd.service openstack-nova-compute.service
 systemctl status libvirtd.service openstack-nova-compute.service
+```
+
+
+
+### n
+
+```note
+
+```
+
+
+
+```shell
+tee /etc/hostname << EOF
+controller-0
+EOF
+
+tee /etc/hostname << EOF
+compute-0
+EOF
+
+neutron agent-list
+neutron agent-delete 095c6e18-60eb-4c3f-a721-bb6d99e098ba 2f64f641-73d6-49fc-ab8f-a871b851fab4
+neutron agent-list
+systemctl  restart  neutron-openvswitch-agent
+
 ```
 
