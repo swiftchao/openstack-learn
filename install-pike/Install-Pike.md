@@ -306,7 +306,7 @@ yum install -y openstack-utils openstack-selinux python-openstackclient
 ```shell
 /usr/sbin/setenforce 0
 
-VALUE="disabled"; FILE=/etc/sysconfig/selinux; KEY="SELINUX"; NEW_VALUE="$KEY=$VALUE"; LINE=$(grep "$KEY" -w -n -m1 $FILE | awk '{if (NR==1) print$0}' | awk -F ':' '{print$1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
+VALUE="disabled"; FILE=/etc/sysconfig/selinux; KEY="SELINUX"; NEW_VALUE="$KEY=$VALUE"; LINE=$(grep "^$KEY" -w -n -m1 $FILE | awk '{if (NR==1) print$0}' | awk -F ':' '{print$1}'); echo $LINE; if [ -n "$LINE" ]; then sed -i "${LINE}s|.*|$NEW_VALUE|" $FILE; else echo "$NEW_VALUE" >> $FILE; fi
 ```
 
 ### 安装ntp(所有节点)
